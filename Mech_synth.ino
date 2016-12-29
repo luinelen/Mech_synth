@@ -1,8 +1,79 @@
 int timeOn = 100;
 int timeOff = 500;
 
+/* How many shift register chips are daisy-chained.
+*/
+#define NUMBER_OF_SHIFT_CHIPS   1
+
+/* Width of data (how many ext lines).
+*/
+#define DATA_WIDTH   NUMBER_OF_SHIFT_CHIPS * 8
+
+/* Width of pulse to trigger the shift register to read and latch.
+*/
+#define PULSE_WIDTH_USEC   5
+
+/* Optional delay between shift register reads.
+*/
+#define POLL_DELAY_MSEC   1
+
+int ploadPin        = 5;  // Connects to Parallel load pin the 165
+int clockEnablePin  = 2;  // Connects to Clock Enable pin the 165
+int dataPin         = 4; // Connects to the Q7 pin the 165
+int clockPin        = 3; // Connects to the Clock pin the 165
+
+unsigned int pinValues;
+
+/* This function is essentially a "shift-in" routine reading the
+ * serial Data from the shift register chips and representing
+ * the state of those pins in an unsigned integer (or long).
+*/
+unsigned int read_shift_regs()
+{
+  long bitVal;
+  unsigned int bytesVal = 0;
+
+  /* Trigger a parallel Load to latch the state of the data lines,
+  */
+  digitalWrite(clockEnablePin, HIGH);
+  digitalWrite(ploadPin, LOW);
+  delayMicroseconds(PULSE_WIDTH_USEC);
+  digitalWrite(ploadPin, HIGH);
+  digitalWrite(clockEnablePin, LOW);
+
+  /* Loop to read each bit value from the serial out line
+   * of the SN74HC165N.
+  */
+  for(int i = 0; i < DATA_WIDTH; i++)
+  {
+    bitVal = digitalRead(dataPin);
+
+    /* Set the corresponding bit in bytesVal.
+    */
+    bytesVal |= (bitVal << ((DATA_WIDTH-1) - i));
+
+    /* Pulse the Clock (rising edge shifts the next bit).
+    */
+    digitalWrite(clockPin, HIGH);
+    delayMicroseconds(PULSE_WIDTH_USEC);
+    digitalWrite(clockPin, LOW);
+  }
+
+  return(bytesVal);
+}
+
 // the setup function runs once when you press reset or power the board
 void setup() {
+  /* Initialize our digital pins...
+  */
+  pinMode(ploadPin, OUTPUT);
+  pinMode(clockEnablePin, OUTPUT);
+  pinMode(clockPin, OUTPUT);
+  pinMode(dataPin, INPUT);
+
+  digitalWrite(clockPin, LOW);
+  digitalWrite(ploadPin, HIGH);
+  
   // initialize digital pin as an output.
   pinMode(13, OUTPUT);
   pinMode(12, OUTPUT);
@@ -16,44 +87,18 @@ void setup() {
 
 // the loop function runs over and over again forever
 void loop() {
-  digitalWrite(13, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(13, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
+  /* Read the state of all zones.
+  */
+  pinValues = read_shift_regs();
 
-  digitalWrite(12, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(12, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
+  for(int i=0; i<DATA_WIDTH; i++)
+  {
+    if((pinValues >> i) & 1)
+      digitalWrite(i+6, HIGH);
+  }
 
-  digitalWrite(11, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(11, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
+  delay(timeOn);
 
-  digitalWrite(10, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(10, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
-
-  digitalWrite(9, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(9, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
-
-  digitalWrite(8, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(8, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
-
-  digitalWrite(7, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(7, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
-
-  digitalWrite(6, HIGH);   // turn on (HIGH is the voltage level)
-  delay(timeOn);              // wait
-  digitalWrite(6, LOW);    // turn off by making the voltage LOW
-  delay(timeOff);              // wait
-
+  for(int i=0; i<DATA_WIDTH; i++)
+    digitalWrite(i+6, LOW);
 }
