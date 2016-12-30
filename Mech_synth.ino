@@ -25,6 +25,7 @@ int dataPin         = 4; // Connects to the Q7 pin the 165
 int clockPin        = 3; // Connects to the Clock pin the 165
 
 unsigned int pinValues;
+unsigned int lastPinValues;
 
 #define PIXEL_PIN 1
 
@@ -32,9 +33,14 @@ unsigned int pinValues;
 
 #define POT_PIN 0
 
+int buttonValue = HIGH;
+int lastButtonValue = buttonValue;
+
 int activeStep = 0;
 
 int currentStep = 0;
+
+int steps[8][8];
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -102,6 +108,14 @@ void setup() {
   strip.show(); // Initialize all pixels to 'off'
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  for(int i=0; i<DATA_WIDTH; i++)
+  {
+    for(int j=0; j<DATA_WIDTH; j++)
+    {
+      steps[i][j]=0;
+    }
+  }  
 }
 
 // the loop function runs over and over again forever
@@ -112,13 +126,15 @@ void loop() {
 
   timeOff = analogRead(POT_PIN);
 
-  if(digitalRead(BUTTON_PIN) == LOW)
+  buttonValue = digitalRead(BUTTON_PIN);
+  if(buttonValue == LOW && lastButtonValue == HIGH)
   {
     activeStep++;
 
     if(activeStep>8)
       activeStep=0;
   }
+  lastButtonValue = buttonValue;
   
   /* Read the state of all zones.
   */
@@ -126,18 +142,34 @@ void loop() {
 
   for(int i=0; i<DATA_WIDTH; i++)
   {
-    if((pinValues >> i) & 1)
+    if(((pinValues >> i) & 1) && !((lastPinValues >> i) & 1) && activeStep<8)
     {
-      digitalWrite(i+6, HIGH);
-      if(i==activeStep)
-        strip.setPixelColor(7-i, strip.Color(15,15,0));//yellow
+      if(steps[activeStep][i] == 0)
+        steps[activeStep][i] = 1;
       else
-        strip.setPixelColor(7-i, strip.Color(15,0,0));//red
+        steps[activeStep][i] = 0;
     }
-    else if(i==activeStep)
-      strip.setPixelColor(7-i, strip.Color(0,15,0));//green
-    else if(i==currentStep)
-      strip.setPixelColor(7-i, strip.Color(0,0,15));//blue
+  }
+
+  lastPinValues = pinValues;
+
+  for(int i=0; i<DATA_WIDTH; i++)
+  {
+    if(steps[currentStep][i] == 1)
+      digitalWrite(i+6, HIGH);
+
+    int red=0, green=0, blue=0;
+
+    if(activeStep<8 && steps[activeStep][i] == 1 || steps[currentStep][i] == 1)
+      red = 15;
+
+    if(i==activeStep)
+      green = 15;
+
+    if(i==currentStep)
+      blue=15;
+
+    strip.setPixelColor(7-i, strip.Color(red, green, blue));
   }
   strip.show();
 
@@ -146,12 +178,49 @@ void loop() {
   for(int i=0; i<DATA_WIDTH; i++)
   {
     digitalWrite(i+6, LOW);
+
+      int red=0, green=0, blue=0;
+
+    if(activeStep<8 && steps[activeStep][i] == 1)
+      red = 15;
+
     if(i==activeStep)
-      strip.setPixelColor(7-i, strip.Color(0,15,0));//green
-    else
-      strip.setPixelColor(7-i, strip.Color(0,0,0));
+      green = 15;
+
+    if(i==currentStep)
+      blue=15;
+
+    strip.setPixelColor(7-i, strip.Color(red, green, blue));
   }
   strip.show();
 
-  delay(timeOff);
+  for(int i=0; i<10; i++)
+  {
+    buttonValue = digitalRead(BUTTON_PIN);
+    if(buttonValue == LOW && lastButtonValue == HIGH)
+    {
+      activeStep++;
+
+      if(activeStep>8)
+        activeStep=0;
+    }
+    lastButtonValue = buttonValue;
+  
+    /* Read the state of all zones.
+    */
+    pinValues = read_shift_regs();
+    for(int i=0; i<DATA_WIDTH; i++)
+    {
+      if(((pinValues >> i) & 1) && !((lastPinValues >> i) & 1) && activeStep<8)
+      {
+        if(steps[activeStep][i] == 0)
+          steps[activeStep][i] = 1;
+        else
+          steps[activeStep][i] = 0;
+      }
+    }
+    lastPinValues = pinValues;
+
+    delay(timeOff/10);
+  }
 }
